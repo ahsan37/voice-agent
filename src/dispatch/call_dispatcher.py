@@ -80,6 +80,6 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
     agents.cli.run_app(agents.WorkerOptions(
         entrypoint_fnc=entrypoint,
-        agent_name=LIVEKIT_AGENT_NAME,
-        num_idle_processes=2
+        agent_name="test-agent",
+        num_idle_processes=3
     ))

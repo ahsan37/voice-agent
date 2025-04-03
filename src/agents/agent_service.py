@@ -1,33 +1,28 @@
 from models.voice_agent import VoiceAgent
+from src.agents.agent_generator import generate_voice_agents
+from typing import List, Dict, Optional
+from openai import OpenAI
 
-# For prototyping, we use an in-memory dictionary to store agents, in production we would use a database
-voice_agents = {
-    "agent_001": VoiceAgent(
-        id="agent_001",
-        name="Test Agent",
-        system_prompt="You are a helpful assistant.",
-        llm_model_id="gpt-4o-mini",
-        tts_model_id="sonic-english",
-        stt_model_id="nova-3",
-        voice_id="c2ac25f9-ecc4-4f56-9095-651354df60c0",
-        personality="Friendly and helpful"
-    ),
-    "agent_002": VoiceAgent(
-        id="agent_002",
-        name="Test Agent",
-        system_prompt="You are an unhelpful assistant.",
-        llm_model_id="gpt-4o-mini",
-        tts_model_id="sonic-english",
-        stt_model_id="nova-3",
-        voice_id="c2ac25f9-ecc4-4f56-9095-651354df60c0",
-        personality="Unhelpful and rude"
-    ),
-    # Additional agents can be added here
-}
+voice_agents: Dict[str, VoiceAgent] = {}
+
+def initialize_agents(user_system_prompt: str, num_agents: int, client: Optional[OpenAI] = None):
+    global voice_agents
+    generated_agents = generate_voice_agents(user_system_prompt, num_agents, client)
+    
+    voice_agents.clear()
+    
+    for agent in generated_agents:
+        voice_agents[agent.id] = agent
+
+def get_all_agents() -> List[VoiceAgent]:
+    """
+    Retrieve all agents from the dictionary.
+    """
+    return list(voice_agents.values())
 
 def get_agent(agent_id: str) -> VoiceAgent:
     """
-    Retrieve an agent from the database.
+    Retrieve an agent from the dictionary.
     """
     agent = voice_agents.get(agent_id)
     if not agent:
@@ -37,13 +32,16 @@ def get_agent(agent_id: str) -> VoiceAgent:
 
 def add_agent(agent: VoiceAgent):
     """
-    Add an agent to the database.
+    Add an agent to the dictionary.
     """
     voice_agents[agent.id] = agent
     return agent
 
 def delete_agent(agent_id: str):
     """
-    Delete an agent from the database.
+    Delete an agent from the dictionary.
     """
-    del voice_agents[agent_id]
+    if agent_id in voice_agents:
+        del voice_agents[agent_id]
+    else:
+        raise ValueError(f"Agent with ID {agent_id} not found.")
