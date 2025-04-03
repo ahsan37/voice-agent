@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
 import asyncio
 import logging
 import os
@@ -10,18 +14,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+LIVEKIT_AGENT_NAME = os.getenv("LIVEKIT_AGENT_NAME")
 
 async def entrypoint(ctx: agents.JobContext):
     logging.info(f"Job started. Metadata: {ctx.job.metadata}")
     await ctx.connect()
 
-    phone_number = None
-    try:
-        metadata = json.loads(ctx.job.metadata)
-        phone_number = metadata.get("phone_number")
-    except Exception as e:
-        logging.error("Error parsing job metadata", exc_info=e)
-
+    phone_number, system_prompt, llm_model_id, tts_model_id, stt_model_id, voice_id, personality = retrieve_metadata(ctx)
 
     if phone_number:
         SIP_TRUNK_ID = os.environ.get("LIVEKIT_SIP_TRUNK_ID")    
@@ -40,31 +39,47 @@ async def entrypoint(ctx: agents.JobContext):
     else:
         logging.info("No phone number provided in metadata; skipping outbound call.")
 
-
     session = AgentSession(
-        stt=deepgram.STT(),
-        llm=openai.LLM(model="gpt-4o"),  
-        tts=cartesia.TTS(),
+        stt=deepgram.STT(model=stt_model_id),
+        llm=openai.LLM(model=llm_model_id),  
+        tts=cartesia.TTS(model=tts_model_id, voice=voice_id),
         vad=silero.VAD.load(),
     )
 
-    agent = SimulationAgent(personality="Friendly", objective="simulate a conversation")
+    agent = SimulationAgent(personality=personality, objective=system_prompt)
 
     await session.start(
         room=ctx.room, 
         agent=agent,
     )
 
-    await asyncio.sleep(10)
     logging.info("Simulated call finished.")
 
 
 async def run_test() -> None:
     await entrypoint()
 
+def retrieve_metadata(ctx: agents.JobContext):
+    try:
+        metadata_dict = json.loads(ctx.job.metadata)
+    except (json.JSONDecodeError, TypeError):
+        logging.error("Job metadata was not valid JSON.")
+        return None
+    
+    phone_number = metadata_dict.get("phone_number")
+    system_prompt = metadata_dict.get("system_prompt")
+    llm_model_id = metadata_dict.get("llm_model_id")
+    tts_model_id = metadata_dict.get("tts_model_id")
+    stt_model_id = metadata_dict.get("stt_model_id")
+    voice_id = metadata_dict.get("voice_id")
+    personality = metadata_dict.get("personality")
+
+    return phone_number, system_prompt, llm_model_id, tts_model_id, stt_model_id, voice_id, personality
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
     agents.cli.run_app(agents.WorkerOptions(
         entrypoint_fnc=entrypoint,
-        agent_name="my-test-agent" 
+        agent_name=LIVEKIT_AGENT_NAME,
+        num_idle_processes=2
     ))
